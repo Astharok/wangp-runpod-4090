@@ -1,0 +1,54 @@
+name: Build WanGP RunPod image
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-image.yml'
+      - 'runpod-entrypoint.sh'
+env:
+  IMAGE: ghcr.io/astharok/wangp-runpod-4090
+  WANGP_COMMIT: fde3c7e10c47c854913d5877d955901a35e44714
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: deepbeepmeep/WanGP
+          ref: ${{ env.WANGP_COMMIT }}
+          path: WanGP
+      - name: Prepare official image for RunPod
+        run: |
+          cp runpod-entrypoint.sh WanGP/runpod-entrypoint.sh
+          sed -i 's|WORKDIR /workspace|WORKDIR /opt/WanGP|' WanGP/Dockerfile
+          sed -i 's|chown -R user:user /workspace|chown -R user:user /opt/WanGP|' WanGP/Dockerfile
+          sed -i '/COPY entrypoint.sh \/workspace\/entrypoint.sh/,$d' WanGP/Dockerfile
+          cat >> WanGP/Dockerfile <<'EOF'
+          COPY . /opt/WanGP
+          COPY runpod-entrypoint.sh /usr/local/bin/runpod-entrypoint.sh
+          RUN chmod +x /usr/local/bin/runpod-entrypoint.sh && chown -R user:user /opt/WanGP
+          WORKDIR /opt/WanGP
+          EXPOSE 7860 7866
+          ENTRYPOINT ["/usr/local/bin/runpod-entrypoint.sh"]
+          EOF
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: WanGP
+          push: true
+          build-args: CUDA_ARCHITECTURES=8.9
+          tags: |
+            ${{ env.IMAGE }}:testing
+            ${{ env.IMAGE }}:${{ env.WANGP_COMMIT }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
