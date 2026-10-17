@@ -1,4 +1,5 @@
 name: Build WanGP RunPod image
+
 on:
   workflow_dispatch:
   push:
@@ -6,9 +7,11 @@ on:
     paths:
       - '.github/workflows/build-image.yml'
       - 'runpod-entrypoint.sh'
+
 env:
   IMAGE: ghcr.io/astharok/wangp-runpod-4090
   WANGP_COMMIT: fde3c7e10c47c854913d5877d955901a35e44714
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,10 +28,13 @@ jobs:
       - name: Prepare official image for RunPod
         run: |
           cp runpod-entrypoint.sh WanGP/runpod-entrypoint.sh
+          printf 'torch==2.10.0+cu128\ntorchvision==0.25.0+cu128\ntorchaudio==2.10.0+cu128\n' > WanGP/pytorch-constraints.txt
           sed -i 's/ubuntu22.04/ubuntu24.04/' WanGP/Dockerfile
           sed -i 's/python3-pip git/python3-pip python3-venv python3-dev build-essential git/' WanGP/Dockerfile
           sed -i '/# Upgrade pip first/i RUN python3 -m venv /opt/venv\nENV PATH="/opt/venv/bin:$PATH"' WanGP/Dockerfile
           sed -i '/ENV DEBIAN_FRONTEND=noninteractive/a ENV PIP_BREAK_SYSTEM_PACKAGES=1\nENV PIP_NO_CACHE_DIR=1' WanGP/Dockerfile
+          sed -i '/COPY requirements.txt ./a COPY pytorch-constraints.txt .' WanGP/Dockerfile
+          sed -i 's|pip install -r requirements.txt|pip install --extra-index-url https://download.pytorch.org/whl/cu128 -c pytorch-constraints.txt -r requirements.txt|' WanGP/Dockerfile
           sed -i 's|WORKDIR /workspace|WORKDIR /opt/WanGP|' WanGP/Dockerfile
           sed -i 's|chown -R user:user /workspace|chown -R user:user /opt/WanGP|' WanGP/Dockerfile
           sed -i '/COPY entrypoint.sh \/workspace\/entrypoint.sh/,$d' WanGP/Dockerfile
