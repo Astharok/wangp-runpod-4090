@@ -1,36 +1,28 @@
 # WanGP para RunPod con RTX 4090
 
-Esta configuración construye el `Dockerfile` oficial de WanGP fijando:
+Construcción del Dockerfile oficial de deepbeepmeep/WanGP, fijado al commit fde3c7e10c47c854913d5877d955901a35e44714 y compilado para CUDA 8.9 (RTX 4090).
 
-- WanGP commit: `fde3c7e10c47c854913d5877d955901a35e44714`
-- Arquitectura CUDA: `8.9` (RTX 4090)
-- Imagen: `ghcr.io/<usuario>/wangp-runpod-4090:stable`
+Imagen de pruebas: ghcr.io/astharok/wangp-runpod-4090:testing
 
-## Configuración de la plantilla RunPod
+Plantilla privada RunPod: 1aulwkkl68 (WanGP RTX4090 - testing).
 
-- Tipo: Pod / NVIDIA GPU
-- Container disk: 40 GB
-- Volume disk inicial: 300 GB
-- Mount path: `/runpod-volume`
-- HTTP: `7860`
-- TCP: `22`
+## Configuración
 
-La aplicación vive en `/opt/WanGP`; el volumen persistente no puede montarse
-encima de ese directorio. Los datos se guardan en
-`/runpod-volume/wan-gp`.
+- Container disk: 40 GB.
+- Volume disk: 300 GB, montado en /runpod-volume.
+- Aplicación: /opt/WanGP.
+- Datos: /runpod-volume/wan-gp.
+- HTTP 7860: interfaz web protegida por contraseña.
+- HTTP 7866: MCP Streamable HTTP con OAuth.
+- WANGP_DATA_DIR=/runpod-volume/wan-gp
+- WANGP_ENABLE_MCP=1
 
-El acceso web se inicia con autenticación:
+Las contraseñas se generan en los registros en cada arranque. Opcionalmente usar secretos RunPod para WANGP_AUTH_PASSWORD y WANGP_MCP_AUTH_PASSWORD, con valores distintos. No guardar contraseñas en este repositorio.
 
-```text
-python wgp.py --listen --server-port 7860 --auth
-```
+MCP: https://POD-ID-7866.proxy.runpod.net/mcp. El origen se configura automáticamente con RUNPOD_POD_ID.
 
-La contraseña web se suministra mediante el secreto `WANGP_AUTH_PASSWORD`.
-El servidor MCP se añadirá después de validar el arranque web y se publicará
-con autenticación independiente, mediante `WANGP_MCP_AUTH_PASSWORD`.
+El disco del pod sobrevive a reinicios, pero se pierde al eliminar el pod. Para reemplazar pods se requiere un volumen de red o una copia previa. No está instalado SSH en esta primera imagen; usar la consola de RunPod.
 
-## Actualizaciones
+## Validación
 
-No sustituir el commit por `main`. Primero se prueba el nuevo commit en una
-etiqueta de prueba y, después de validar generación y persistencia, se promueve
-a `stable`.
+La etiqueta testing no implica que la imagen esté validada. Primero debe completar el build, publicarse en GHCR y probarse en una RTX 4090. Después se fija el digest y se promueve a stable.
