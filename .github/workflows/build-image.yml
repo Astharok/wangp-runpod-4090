@@ -5,11 +5,12 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/build-image.yml'
-      - 'runpod-entrypoint.sh'
+      - ".github/workflows/build-image.yml"
+      - "runpod-entrypoint.sh"
 
 env:
-  IMAGE: ghcr.io/astharok/wangp-runpod-4090
+  REGISTRY: ghcr.io
+  IMAGE_NAME: astharok/wangp-runpod-4090
   WANGP_COMMIT: fde3c7e10c47c854913d5877d955901a35e44714
 
 jobs:
@@ -18,14 +19,19 @@ jobs:
     permissions:
       contents: read
       packages: write
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - name: Check out this build configuration
+        uses: actions/checkout@v4
+
+      - name: Check out the pinned official WanGP source
+        uses: actions/checkout@v4
         with:
           repository: deepbeepmeep/WanGP
           ref: ${{ env.WANGP_COMMIT }}
           path: WanGP
-      - name: Prepare WanGP with Sage2 for RTX 4090
+
+      - name: Adapt the official image for a persistent RunPod volume
         run: |
           cp runpod-entrypoint.sh WanGP/runpod-entrypoint.sh
           printf 'torch==2.10.0+cu128\ntorchvision==0.25.0+cu128\ntorchaudio==2.10.0+cu128\n' > WanGP/pytorch-constraints.txt
@@ -35,12 +41,16 @@ jobs:
           sed -i '/ENV DEBIAN_FRONTEND=noninteractive/a ENV PIP_BREAK_SYSTEM_PACKAGES=1\nENV PIP_NO_CACHE_DIR=1' WanGP/Dockerfile
           sed -i '/COPY requirements.txt ./a COPY pytorch-constraints.txt .' WanGP/Dockerfile
           sed -i 's|pip install -r requirements.txt|pip install --extra-index-url https://download.pytorch.org/whl/cu128 -c pytorch-constraints.txt -r requirements.txt|' WanGP/Dockerfile
-          sed -i 's/ENV MAX_JOBS=8/ENV MAX_JOBS=2/' WanGP/Dockerfile
+          # SageAttention's CUDA compilation can exhaust a standard GitHub runner
+          # even with two concurrent compiler processes. One job is slower but
+          # keeps enough memory available for the runner and Docker BuildKit.
+          sed -i 's/ENV MAX_JOBS=8/ENV MAX_JOBS=1/' WanGP/Dockerfile
           sed -i 's/useradd -u 1000 -ms/useradd -u 10001 -ms/' WanGP/Dockerfile
           sed -i 's|WORKDIR /workspace|WORKDIR /opt/WanGP|' WanGP/Dockerfile
           sed -i 's|chown -R user:user /workspace|chown -R user:user /opt/WanGP|' WanGP/Dockerfile
           sed -i '/COPY entrypoint.sh \/workspace\/entrypoint.sh/,$d' WanGP/Dockerfile
           cat >> WanGP/Dockerfile <<'EOF'
+
           COPY . /opt/WanGP
           COPY runpod-entrypoint.sh /usr/local/bin/runpod-entrypoint.sh
           RUN chmod +x /usr/local/bin/runpod-entrypoint.sh && chown -R user:user /opt/WanGP
@@ -48,19 +58,27 @@ jobs:
           EXPOSE 7860 7866
           ENTRYPOINT ["/usr/local/bin/runpod-entrypoint.sh"]
           EOF
-      - uses: docker/login-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build the official WanGP Dockerfile for RTX 4090
+        uses: docker/build-push-action@v6
         with:
           context: WanGP
           push: true
-          build-args: CUDA_ARCHITECTURES=8.9
+          build-args: |
+            CUDA_ARCHITECTURES=8.9
           tags: |
-            ${{ env.IMAGE }}:testing
-            ${{ env.IMAGE }}:${{ env.WANGP_COMMIT }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:testing
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.WANGP_COMMIT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
