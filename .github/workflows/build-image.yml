@@ -25,9 +25,10 @@ jobs:
           repository: deepbeepmeep/WanGP
           ref: ${{ env.WANGP_COMMIT }}
           path: WanGP
-      - name: Prepare official image for RunPod
+      - name: Prepare a simple RunPod image
         run: |
           cp runpod-entrypoint.sh WanGP/runpod-entrypoint.sh
+          sed -i 's/--attention sage2/--attention sdpa/' WanGP/runpod-entrypoint.sh
           printf 'torch==2.10.0+cu128\ntorchvision==0.25.0+cu128\ntorchaudio==2.10.0+cu128\n' > WanGP/pytorch-constraints.txt
           sed -i 's/ubuntu22.04/ubuntu24.04/' WanGP/Dockerfile
           sed -i 's/python3-pip git/python3-pip python3-venv python3-dev build-essential git/' WanGP/Dockerfile
@@ -35,6 +36,8 @@ jobs:
           sed -i '/ENV DEBIAN_FRONTEND=noninteractive/a ENV PIP_BREAK_SYSTEM_PACKAGES=1\nENV PIP_NO_CACHE_DIR=1' WanGP/Dockerfile
           sed -i '/COPY requirements.txt ./a COPY pytorch-constraints.txt .' WanGP/Dockerfile
           sed -i 's|pip install -r requirements.txt|pip install --extra-index-url https://download.pytorch.org/whl/cu128 -c pytorch-constraints.txt -r requirements.txt|' WanGP/Dockerfile
+          sed -i '/RUN git clone https://github.com/thu-ml/SageAttention.git/,/pip install --no-build-isolation ./d' WanGP/Dockerfile
+          sed -i 's/useradd -u 1000 -ms/useradd -u 10001 -ms/' WanGP/Dockerfile
           sed -i 's|WORKDIR /workspace|WORKDIR /opt/WanGP|' WanGP/Dockerfile
           sed -i 's|chown -R user:user /workspace|chown -R user:user /opt/WanGP|' WanGP/Dockerfile
           sed -i '/COPY entrypoint.sh \/workspace\/entrypoint.sh/,$d' WanGP/Dockerfile
@@ -56,7 +59,6 @@ jobs:
         with:
           context: WanGP
           push: true
-          build-args: CUDA_ARCHITECTURES=8.9
           tags: |
             ${{ env.IMAGE }}:testing
             ${{ env.IMAGE }}:${{ env.WANGP_COMMIT }}
