@@ -43,6 +43,7 @@ exec su -p user -c '/opt/venv/bin/python wgp.py \
   --auth \
   --public-url "https://${RUNPOD_POD_ID}-7860.proxy.runpod.net" \
   --profile 4 \
+  --perc-reserved-mem-max 0.2 \
   --attention sage2 \
   --config "$WANGP_DATA_DIR/config" \
   --settings "$WANGP_DATA_DIR/settings" \
