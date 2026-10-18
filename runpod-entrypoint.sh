@@ -37,7 +37,7 @@ export SDL_AUDIODRIVER=dummy
 export PULSE_RUNTIME_PATH=/tmp/pulse-runtime
 nvidia-smi
 cd "$APP_DIR"
-exec su -p user -c 'python3 wgp.py \
+exec su -p user -c '/opt/venv/bin/python wgp.py \
   --listen \
   --server-port 7860 \
   --auth \
