@@ -3,6 +3,9 @@ set -euo pipefail
 APP_DIR=/opt/WanGP
 DATA_DIR=${WANGP_DATA_DIR:-/runpod-volume/wan-gp}
 export WANGP_DATA_DIR="$DATA_DIR"
+export WANGP_PROFILE="${WANGP_PROFILE:-5}"
+export WANGP_RESERVED_RAM="${WANGP_RESERVED_RAM:-0.1}"
+export WANGP_ATTENTION="${WANGP_ATTENTION:-sage2}"
 if [ "${WANGP_ENABLE_MCP:-0}" = 1 ]; then
   : "${RUNPOD_POD_ID:?RUNPOD_POD_ID is required for authenticated MCP}"
   export WANGP_EXTRA_ARGS="--mcp-webui --mcp-host 0.0.0.0 --mcp-port 7866 --mcp-transport streamable-http --mcp-api-version 2.1 --mcp-auth --mcp-auth-url https://${RUNPOD_POD_ID}-7866.proxy.runpod.net ${WANGP_EXTRA_ARGS:-}"
@@ -42,9 +45,9 @@ exec su -p user -c '/opt/venv/bin/python wgp.py \
   --server-port 7860 \
   --auth \
   --public-url "https://${RUNPOD_POD_ID}-7860.proxy.runpod.net" \
-  --profile 4 \
-  --perc-reserved-mem-max 0.2 \
-  --attention sage2 \
+  --profile "$WANGP_PROFILE" \
+  --perc-reserved-mem-max "$WANGP_RESERVED_RAM" \
+  --attention "$WANGP_ATTENTION" \
   --config "$WANGP_DATA_DIR/config" \
   --settings "$WANGP_DATA_DIR/settings" \
   --loras "$WANGP_DATA_DIR/loras" \
