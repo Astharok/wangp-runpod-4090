@@ -41,6 +41,7 @@ exec su -p user -c '/opt/venv/bin/python wgp.py \
   --listen \
   --server-port 7860 \
   --auth \
+  --public-url "https://${RUNPOD_POD_ID}-7860.proxy.runpod.net" \
   --profile 4 \
   --attention sage2 \
   --config "$WANGP_DATA_DIR/config" \
