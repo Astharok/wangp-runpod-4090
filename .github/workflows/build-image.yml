@@ -11,7 +11,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: astharok/wangp-runpod-4090
-  WANGP_COMMIT: fde3c7e10c47c854913d5877d955901a35e44714
+  WANGP_COMMIT: 22d1f26165592ed1ec07d8766b794902bf61bbf9
 
 jobs:
   build:
@@ -31,23 +31,22 @@ jobs:
           ref: ${{ env.WANGP_COMMIT }}
           path: WanGP
 
-      - name: Adapt the official image for a persistent RunPod volume
+      - name: Adapt the official image for RunPod RTX 4090
         run: |
           cp runpod-entrypoint.sh WanGP/runpod-entrypoint.sh
-          printf 'torch==2.10.0+cu128\ntorchvision==0.25.0+cu128\ntorchaudio==2.10.0+cu128\n' > WanGP/pytorch-constraints.txt
-          sed -i 's/ubuntu22.04/ubuntu24.04/' WanGP/Dockerfile
+          printf 'torch==2.10.0+cu130\ntorchvision==0.25.0+cu130\ntorchaudio==2.10.0+cu130\n' > WanGP/pytorch-constraints.txt
+          sed -i 's|nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04|nvidia/cuda:13.0.2-cudnn-devel-ubuntu24.04|' WanGP/Dockerfile
           sed -i 's/python3-pip git/python3-pip python3-venv python3-dev build-essential git/' WanGP/Dockerfile
           sed -i '/# Upgrade pip first/i RUN python3 -m venv /opt/venv\nENV PATH="/opt/venv/bin:$PATH"' WanGP/Dockerfile
           sed -i '/ENV DEBIAN_FRONTEND=noninteractive/a ENV PIP_BREAK_SYSTEM_PACKAGES=1\nENV PIP_NO_CACHE_DIR=1' WanGP/Dockerfile
           sed -i '/COPY requirements.txt ./a COPY pytorch-constraints.txt .' WanGP/Dockerfile
-          sed -i 's|pip install -r requirements.txt|pip install --extra-index-url https://download.pytorch.org/whl/cu128 -c pytorch-constraints.txt -r requirements.txt|' WanGP/Dockerfile
-          # Use Comfy.org's matching Linux wheel. Compiling SageAttention from
-          # source exhausts the memory of a standard GitHub-hosted runner.
-          sed -i '/# Install SageAttention from git/,/pip install --no-build-isolation \./c\# Install prebuilt SageAttention 2.2.0 for CUDA 12.8, PyTorch 2.10 and Python 3.12\nRUN pip install --no-deps "https://github.com/Comfy-Org/wheels/releases/download/sageattention-latest/sageattention-2.2.0%2Bcu128torch2.10-cp312-cp312-manylinux_2_34_x86_64.manylinux_2_35_x86_64.whl"' WanGP/Dockerfile
+          sed -i 's|RUN pip install torch==2.10.0+cu128 torchvision==0.25.0+cu128 torchaudio==2.10.0+cu128 --index-url https://download.pytorch.org/whl/cu128|RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 --index-url https://download.pytorch.org/whl/cu130|' WanGP/Dockerfile
+          sed -i 's|RUN pip install -r requirements.txt|RUN pip install -c pytorch-constraints.txt -r requirements.txt|' WanGP/Dockerfile
+          sed -i '/# Install SageAttention from git/,/pip install --no-build-isolation ./c\# Install WanGP tested wheels for Python 3.12, PyTorch 2.10 and CUDA 13\nRUN pip install --no-deps "https://github.com/deepbeepmeep/SageAttention/releases/download/v2.2.0-linux.cg1/sageattention-2.2.0%2Bcu130torch2.10.0.cg1-cp312-cp312-linux_x86_64.whl" && pip install --no-deps "https://github.com/deepbeepmeep/WGPKernels/releases/download/v1.1.2/wgpkernels-1.1.2%2Bcu130-py3-none-linux_x86_64.whl"' WanGP/Dockerfile
           sed -i 's/useradd -u 1000 -ms/useradd -u 10001 -ms/' WanGP/Dockerfile
           sed -i 's|WORKDIR /workspace|WORKDIR /opt/WanGP|' WanGP/Dockerfile
           sed -i 's|chown -R user:user /workspace|chown -R user:user /opt/WanGP|' WanGP/Dockerfile
-          sed -i '/COPY entrypoint.sh \/workspace\/entrypoint.sh/,$d' WanGP/Dockerfile
+          sed -i '/COPY entrypoint.sh/,$d' WanGP/Dockerfile
           cat >> WanGP/Dockerfile <<'EOF'
 
           COPY . /opt/WanGP
@@ -68,7 +67,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build the official WanGP Dockerfile for RTX 4090
+      - name: Build the WanGP image for RTX 4090
         uses: docker/build-push-action@v6
         with:
           context: WanGP
@@ -80,4 +79,3 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.WANGP_COMMIT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
